@@ -46,59 +46,63 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   }
 
   Future<void> _checkIfCourseIsRegistered() async {
+    setState(() {
+      isProcessing = true;
+    });
+
     try {
       final userCourses = await ApiService.getUserCourses(widget.userId);
-
       final isRegisteredCourse = userCourses.any((course) {
         return course['course'].courseID == widget.course.courseID;
       });
 
       setState(() {
         isRegistered = isRegisteredCourse;
+        isProcessing = false;
       });
     } catch (e) {
       print('Error checking course registration: $e');
       setState(() {
         isRegistered = false;
+        isProcessing = false;
       });
     }
   }
 
-  Widget _buildRegisteredText(bool isRegistered) {
-    switch (isRegistered) {
-      case true:
-        return Text(
-          widget.localizations!.startCourse,
-          style: TextStyle(
-            color: Color(0xFFFCFCFF),
-            fontSize: 16,
-            fontFamily: 'DM Sans',
-            fontWeight: FontWeight.w700,
-            height: 0,
-          ),
-        );
-      case false:
-        return Text(
-          widget.localizations!.purchase,
-          style: TextStyle(
-            color: Color(0xFFFCFCFF),
-            fontSize: 16,
-            fontFamily: 'DM Sans',
-            fontWeight: FontWeight.w700,
-            height: 0,
-          ),
-        );
-      default:
-        return Text(
-          "Please wait...",
-          style: TextStyle(
-            color: Color(0xFFFCFCFF),
-            fontSize: 16,
-            fontFamily: 'DM Sans',
-            fontWeight: FontWeight.w700,
-            height: 0,
-          ),
-        );
+  Widget _buildRegisteredText() {
+    if (isProcessing) {
+      return Text(
+        "Loading...",
+        style: TextStyle(
+          color: Color(0xFFFCFCFF),
+          fontSize: 16,
+          fontFamily: 'DM Sans',
+          fontWeight: FontWeight.w700,
+          height: 0,
+        ),
+      );
+    } else if (isRegistered) {
+      return Text(
+        widget.localizations!.startCourse,
+        style: TextStyle(
+          color: Color(0xFFFCFCFF),
+          fontSize: 16,
+          fontFamily: 'DM Sans',
+          fontWeight: FontWeight.w700,
+          height: 0,
+        ),
+      );
+    } else {
+      return Text(
+        widget.localizations!.purchase,
+        style: TextStyle(
+          color: Color(0xFFFCFCFF),
+          fontSize: 16,
+          fontFamily: 'DM Sans',
+          fontWeight: FontWeight.w700,
+          height: 0,
+        ),
+      );
     }
   }
 
@@ -224,14 +228,11 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
             onTap: () {
               print(tag);
             },
-            child: Chip(
-              label: Text(
-                '#$tag',
-                style: TextStyle(
-                  color: widget.isDark ? Colors.black : Colors.white,
-                ),
+            child: Text(
+              '#$tag     ',
+              style: TextStyle(
+                color: Colors.white,
               ),
-              backgroundColor: widget.isDark ? Colors.white70 : Colors.black54,
             ),
           );
         }).toList(),
@@ -569,31 +570,33 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      if (isRegistered) {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => VideoPlayerPage(
-                              courseId: widget.course.courseID,
-                              //  authorId: widget.authorId,
-                            ),
-                          ),
-                        );
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PurchaseScreen(
-                              course: widget.course,
-                              isDark: widget.isDark,
-                              userId: widget.userId,
-                              localizations: widget.localizations,
-                            ),
-                          ),
-                        );
-                      }
-                    },
+                    onTap: isProcessing
+                        ? null
+                        : () {
+                            if (isRegistered) {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => VideoPlayerPage(
+                                    userId: widget.userId,
+                                    courseId: widget.course.courseID,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => PurchaseScreen(
+                                    course: widget.course,
+                                    isDark: widget.isDark,
+                                    userId: widget.userId,
+                                    localizations: widget.localizations,
+                                  ),
+                                ),
+                              );
+                            }
+                          },
                     child: Container(
                       width: 170,
                       height: 55,
@@ -625,10 +628,10 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [_buildRegisteredText(isRegistered)],
+                        children: [_buildRegisteredText()],
                       ),
                     ),
-                  ),
+                  )
                 ],
               ),
               SizedBox(
