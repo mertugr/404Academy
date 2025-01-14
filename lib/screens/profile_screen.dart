@@ -55,22 +55,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       radius: 120,
                       backgroundImage: NetworkImage(widget.user.imageUrl!),
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        _showImageOptions(
-                            context, widget.localizations!, widget.isDark);
-                      },
-                      child: CircleAvatar(
-                        radius: 30,
-                        backgroundColor:
-                            widget.isDark ? Colors.black : Colors.white,
-                        child: Icon(
-                          Icons.edit,
-                          size: 28,
-                          color: widget.isDark ? Colors.white : Colors.black,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -342,44 +326,4 @@ class _ProfileScreenState extends State<ProfileScreen> {
       )),
     );
   }
-}
-
-void _showImageOptions(
-    BuildContext context, AppLocalizations localizations, bool isDark) {
-  showModalBottomSheet(
-    context: context,
-    builder: (BuildContext context) {
-      return Container(
-        height: 200,
-        child: Column(
-          children: [
-            ListTile(
-              leading: Icon(Icons.camera),
-              title: Text(localizations!.camera),
-              onTap: () {
-                // Implement camera functionality
-                Navigator.pop(context); // Close the bottom sheet
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.photo),
-              title: Text(localizations!.gallery),
-              onTap: () {
-                // Implement gallery functionality
-                Navigator.pop(context); // Close the bottom sheet
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.delete),
-              title: Text(localizations!.delete),
-              onTap: () {
-                // Implement delete functionality
-                Navigator.pop(context); // Close the bottom sheet
-              },
-            ),
-          ],
-        ),
-      );
-    },
-  );
 }
