@@ -26,6 +26,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   bool _isOffline = false;
   int? _currentVideoId;
   Timer? _progressUpdateTimer;
+  Map<int, double> _videoProgress = {}; // Track progress for each video
   double _currentProgress = 0.0;
   double _watchedDuration = 0.0;
   Map<String, dynamic>? _courseProgress;
@@ -33,11 +34,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   // Updated to store sections with their videos
   List<Map<String, dynamic>> _sections = [];
   Map<int, List<Map<String, dynamic>>> _sectionVideos = {};
-  final Set<int> _completedVideos = {};
-  Map<int, String> _sectionQuizzes = {}; // Maps sectionId to quizId
-  Set<String> _completedQuizzes = {}; // Using string to store 'quiz_sectionId'
+  Set<int> _completedVideos = {};
+  Set<int> _completedQuizzes = {};
 
-  // Connectivity subscription
   late StreamSubscription<ConnectivityResult> _connectivitySubscription;
 
   @override
@@ -77,25 +76,24 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           _courseProgress = progress;
           if (_courseProgress != null &&
               _courseProgress!['completedVideos'] != null) {
-            _completedVideos
-                .addAll(List<int>.from(_courseProgress!['completedVideos']));
+            _completedVideos =
+                Set<int>.from(_courseProgress!['completedVideos']);
+
+            // Initialize video progress for completed videos
+            for (var videoId in _completedVideos) {
+              _videoProgress[videoId] = 100.0;
+            }
+          }
+          if (_courseProgress != null &&
+              _courseProgress!['completedQuizzes'] != null) {
+            _completedQuizzes =
+                Set<int>.from(_courseProgress!['completedQuizzes']);
           }
         });
       }
     } catch (e) {
-      _showError('Error fetching course progress');
       debugPrint('Error fetching course progress: $e');
     }
-  }
-
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
   }
 
   @override
@@ -110,7 +108,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   void _startProgressTracking() {
     _progressUpdateTimer?.cancel();
     _progressUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (!_isOffline) {
+      if (!_isOffline && _currentVideoId != null) {
         _updateProgress();
       }
     });
@@ -127,7 +125,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     final double progress =
         (currentPosition.inSeconds / totalDuration.inSeconds) * 100;
     final double watchedDuration = currentPosition.inSeconds.toDouble();
-    final bool isCompleted = progress >= 90;
 
     try {
       await ApiService.updateCourseProgress(
@@ -140,39 +137,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
       if (mounted) {
         setState(() {
-          _currentProgress = progress;
-          _watchedDuration = watchedDuration;
-          if (isCompleted && !_completedVideos.contains(_currentVideoId)) {
-            _completedVideos.add(_currentVideoId!);
+          if (_currentVideoId != null) {
+            // Sadece mevcut video için güncelle
+            if (progress >= 90) {
+              _completedVideos.add(_currentVideoId!);
+            }
           }
         });
       }
     } catch (e) {
       debugPrint('Error updating video progress: $e');
-      if (mounted) {
-        _showError('Failed to update progress');
-      }
-    }
-  }
-
-  Future<void> _fetchQuizData() async {
-    try {
-      for (var section in _sections) {
-        final sectionId = section['sectionID'];
-        try {
-          final quizResponse =
-              await ApiService.getRequest('/api/Quizzes/section/$sectionId');
-          if (quizResponse != null && quizResponse['quizId'] != null) {
-            setState(() {
-              _sectionQuizzes[sectionId] = quizResponse['quizId'].toString();
-            });
-          }
-        } catch (error) {
-          debugPrint('Error fetching quiz for section $sectionId: $error');
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching quiz data: $e');
     }
   }
 
@@ -214,8 +188,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             }
           }
         });
-
-        await _fetchQuizData();
       }
     } catch (error) {
       debugPrint('Error fetching course data: $error');
@@ -230,7 +202,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   Future<void> _initializePlayer(String videoUrl, int videoId) async {
     if (_isOffline) {
-      _showError('Cannot play video while offline');
       return;
     }
 
@@ -271,7 +242,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       setState(() {
         _isLoading = false;
         _currentVideoId = videoId;
-        _currentProgress = 0.0;
+        _currentProgress = _videoProgress[videoId] ?? 0.0;
         _watchedDuration = 0.0;
       });
 
@@ -281,12 +252,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       setState(() {
         _isLoading = false;
       });
-      _showError('Failed to load video');
     }
   }
 
-  void _onVideoPositionChanged() {
-    if (!mounted) return;
+  Future<void> _onVideoPositionChanged() async {
+    if (!mounted || _currentVideoId == null) return;
 
     final Duration position = _videoPlayerController.value.position;
     final Duration total = _videoPlayerController.value.duration;
@@ -294,13 +264,20 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     if (total.inSeconds > 0) {
       final double progress = (position.inSeconds / total.inSeconds) * 100;
 
-      setState(() {
-        _currentProgress = progress;
-        _watchedDuration = position.inSeconds.toDouble();
-      });
+      if (mounted) {
+        setState(() {
+          // Update progress only for the current video
+          _videoProgress[_currentVideoId!] = progress;
+          _currentProgress = progress;
+          _watchedDuration = position.inSeconds.toDouble();
 
-      if (progress >= 90 && _currentVideoId != null) {
-        _completedVideos.add(_currentVideoId!);
+          // Mark as completed if progress is >= 90%
+          if (progress >= 90 && !_completedVideos.contains(_currentVideoId)) {
+            _completedVideos.add(_currentVideoId!);
+            // Update the backend about completion
+            _updateProgress();
+          }
+        });
       }
     }
   }
@@ -308,13 +285,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   Future<void> loadNewVideo(
       String videoUrl, String videoTitle, int videoId) async {
     if (_isOffline) {
-      _showError('Cannot load video while offline');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot load video while offline'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
     setState(() {
       _isLoading = true;
       _currentVideoTitle = videoTitle;
+      _currentProgress = 0.0;
     });
 
     // Update progress of current video before switching
@@ -329,14 +312,26 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     await _initializePlayer(videoUrl, videoId);
   }
 
+  bool _isSectionCompleted(int sectionId) {
+    final videos = _sectionVideos[sectionId] ?? [];
+    if (videos.isEmpty) return false;
+
+    bool allVideosCompleted = videos.every((video) {
+      final videoId = video['videoId'];
+      return videoId != null && _completedVideos.contains(videoId);
+    });
+
+    return allVideosCompleted;
+  }
+
   Widget _buildSection(String sectionTitle, List<Map<String, dynamic>> videos) {
     final int sectionId = _sections.firstWhere(
       (section) => section['title'] == sectionTitle,
       orElse: () => {'sectionID': -1},
     )['sectionID'];
 
-    final bool sectionCompleted =
-        videos.every((video) => _completedVideos.contains(video['videoId']));
+    final bool sectionCompleted = _isSectionCompleted(sectionId);
+    final bool quizCompleted = _completedQuizzes.contains(sectionId);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -347,7 +342,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section Header with completion status
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -363,7 +357,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                     ),
                   ),
                 ),
-                if (sectionCompleted)
+                if (sectionCompleted && quizCompleted)
                   const Icon(
                     Icons.check_circle,
                     color: Colors.green,
@@ -372,7 +366,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
               ],
             ),
           ),
-          // Video List
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -380,7 +373,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             itemBuilder: (context, index) =>
                 _buildVideoListTile(videos[index], index),
           ),
-          // Quiz Section
           if (sectionId != -1) ...[
             const Divider(color: Colors.white24),
             ListTile(
@@ -389,49 +381,42 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 height: 32,
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: _completedVideos.contains('quiz_$sectionId')
+                    color: quizCompleted
                         ? Colors.green
-                        : Colors.purple.shade400,
+                        : sectionCompleted
+                            ? Colors.purple.shade400
+                            : Colors.grey,
                   ),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
-                  child: _completedVideos.contains('quiz_$sectionId')
+                  child: quizCompleted
                       ? const Icon(Icons.check, color: Colors.green, size: 20)
-                      : Icon(Icons.quiz,
-                          color: Colors.purple.shade400, size: 20),
+                      : Icon(
+                          Icons.quiz,
+                          color: sectionCompleted
+                              ? Colors.purple.shade400
+                              : Colors.grey,
+                          size: 20,
+                        ),
                 ),
               ),
-              title: const Text(
+              title: Text(
                 'Section Quiz',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: sectionCompleted ? Colors.white : Colors.grey,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               subtitle: Text(
-                _completedVideos.contains('quiz_$sectionId')
-                    ? 'Completed'
-                    : sectionCompleted
-                        ? 'Ready to take'
-                        : 'Complete all videos to unlock',
+                quizCompleted ? 'Completed' : 'Take quiz',
                 style: TextStyle(
                   color: Colors.grey[400],
                 ),
               ),
+              enabled: true,
               onTap: () {
-                if (!sectionCompleted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Complete all videos in this section to unlock the quiz'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                  return;
-                }
-
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -441,7 +426,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 ).then((completed) {
                   if (completed == true) {
                     setState(() {
-                      _completedVideos.add(sectionId);
+                      _completedQuizzes.add(sectionId);
                     });
                   }
                 });
@@ -457,6 +442,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     final int videoId = video['videoId'] ?? -1;
     final bool isCompleted = _completedVideos.contains(videoId);
     final bool isCurrentVideo = videoId == _currentVideoId;
+    final double videoProgress = _videoProgress[videoId] ?? 0.0;
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
@@ -493,15 +479,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           fontWeight: isCurrentVideo ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      subtitle: _currentProgress > 0 && videoId == _currentVideoId
-          ? LinearProgressIndicator(
-              value: _currentProgress / 100,
-              backgroundColor: Colors.grey[800],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                _currentProgress >= 90 ? Colors.green : Colors.blue,
-              ),
-            )
-          : null,
+      subtitle: Text(
+        isCurrentVideo ? 'Currently playing' : '',
+        style: TextStyle(color: Colors.grey[400]),
+      ),
       onTap: () {
         if (!_isOffline) {
           loadNewVideo(video['url'], video['title'], videoId);
@@ -522,7 +503,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF1C1D1F),
       appBar: AppBar(
-        title: const Text("Course Player"),
+        title: const Text(
+          "Course Player",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color(0xFF2D2F31),
       ),
       body: _isOffline
