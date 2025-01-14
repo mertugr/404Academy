@@ -1,3 +1,5 @@
+// Updated ApiService with getUserById and getUserCourses including model conversion
+
 import 'package:cyber_security_app/models/authors.dart';
 import 'package:cyber_security_app/models/sections.dart';
 import 'package:cyber_security_app/models/user_model.dart';
@@ -543,6 +545,42 @@ class ApiService {
       return response.map((data) => Section.fromMap(data)).toList();
     } else {
       throw Exception('Invalid response format for sections.');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getCourseProgress(
+      int courseId, int userId) async {
+    try {
+      final response =
+          await getRequest('/api/CourseProgress/$courseId/$userId');
+      if (response == null) {
+        throw Exception('No progress data received');
+      }
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      print('Error fetching course progress: $e');
+      throw Exception('Failed to fetch course progress: $e');
+    }
+  }
+
+  static Future<void> updateCourseProgress(
+    int userId,
+    int courseId,
+    int videoId,
+    double progress,
+    double watchedDuration,
+  ) async {
+    try {
+      await postRequest('/api/CourseProgress/update', {
+        'courseId': courseId,
+        'userId': userId,
+        'videoId': videoId,
+        'progress': progress,
+        'watchedDuration': watchedDuration,
+      });
+    } catch (e) {
+      print('Error updating course progress: $e');
+      throw Exception('Failed to update course progress');
     }
   }
 }

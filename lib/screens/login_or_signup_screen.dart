@@ -157,7 +157,7 @@ class _LoginSignupScreenState extends State<LoginSignupScreen> {
                     colors: [Color(0xFF132924), Color(0xFF288E50)],
                   ),
                 ),
-                GestureDetector(
+                /*  GestureDetector(
                   onTap: () {
                     AuthService.signInWithGoogle(context);
                   },
@@ -174,42 +174,7 @@ class _LoginSignupScreenState extends State<LoginSignupScreen> {
                       ),
                     ),
                   ),
-                ),
-                Container(
-                  margin: const EdgeInsets.only(top: 30, bottom: 30),
-                  width: 85,
-                  decoration: ShapeDecoration(
-                    shape: RoundedRectangleBorder(
-                      side: const BorderSide(
-                        width: 1,
-                        strokeAlign: BorderSide.strokeAlignCenter,
-                        color: Color(0xFFC2C2C2),
-                      ),
-                    ),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SignUpPage(),
-                      ),
-                    );
-                  },
-                  child: Opacity(
-                    opacity: 0.50,
-                    child: Text(
-                      AppLocalizations.of(context)?.signup ?? "Sign Up",
-                      style: const TextStyle(
-                        color: Color(0xFF243656),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        height: 0,
-                      ),
-                    ),
-                  ),
-                ),
+                ),*/
               ],
             ),
           ),
