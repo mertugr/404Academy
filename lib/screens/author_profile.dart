@@ -82,24 +82,44 @@ class _AuthorProfileDetailState extends State<AuthorProfileDetail> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_isLoading || _error != null || _author == null) {
       return Scaffold(
-        appBar: AppBar(title: Text(widget.localizations!.authorProfile)),
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: widget.isDark ? Colors.black : Colors.white,
+        appBar: AppBar(
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 15.0),
+            child: IconButton(
+              icon: Icon(
+                Icons.arrow_circle_left_outlined,
+                size: 32,
+                color: widget.isDark ? Colors.white : Colors.black,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+            ),
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          title: Padding(
+            padding: EdgeInsets.only(left: 20),
+            child: Text(
+              widget.localizations!.authorDetails,
+              style: TextStyle(
+                color: widget.isDark ? Colors.white : Colors.black,
+                fontSize: 18,
+                fontFamily: 'Prompt',
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ),
+        ),
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
       );
     }
-    if (_error != null) {
-      return Scaffold(
-        appBar: AppBar(title: Text(widget.localizations!.authorProfile)),
-        body: Center(child: Text('${widget.localizations!.error}: $_error')),
-      );
-    }
-    if (_author == null) {
-      return Scaffold(
-        appBar: AppBar(title: Text(widget.localizations!.authorProfile)),
-        body: Center(child: Text(widget.localizations!.notFoundAuthor)),
-      );
-    }
+
     return Scaffold(
         backgroundColor: widget.isDark ? Colors.black : Colors.white,
         appBar: AppBar(
